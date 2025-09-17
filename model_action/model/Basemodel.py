@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 
 class BaseModel():
-    def __init__(self,opt):
+    def __init__(self, train_pkl: str, val_pkl: str, batch_size: int = 32):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.batch_size = batch_size
 
     def train_one_epoch(self):
         pass

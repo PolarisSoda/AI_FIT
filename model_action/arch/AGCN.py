@@ -160,14 +160,15 @@ class MultiHeadAGCN(nn.Module):
     def __init__(self,
                  num_exercises: int,
                  num_states_per_exercise: list,
-                 num_point=25,
+                 num_point=24,
                  num_person=1,
-                 graph=None,
-                 graph_args=dict(),
-                 in_channels=3,
-                 drop_out=0.0):
+                 graph="model-action.arch.graph.mygraph.Graph",
+                 graph_args={"labeling_mode": "spatial"},
+                 in_channels=2,
+                 drop_out=0.5,
+                 **kwargs):
         super().__init__()
-        
+        print("AGCNArch", locals())
         self.backbone = AGCNBackbone(
             num_point=num_point,
             num_person=num_person,
@@ -190,18 +191,3 @@ class MultiHeadAGCN(nn.Module):
         """
         feat = self.backbone(x)
         return self.head(feat)
-
-if __name__ == '__main__':
-    model = MultiHeadAGCN(
-        num_exercises=41,
-        num_states_per_exercise=[5]*41,
-        num_point=24,
-        num_person=1,
-        graph="model_action.arch.graph.mygraph.Graph",
-        graph_args={"labeling_mode": "spatial"},
-        in_channels=2,  # x,y만 쓰는 경우
-        drop_out=0.5
-    )
-    input = torch.randn((8,2,16,24,1))
-    output = model(input)
-    

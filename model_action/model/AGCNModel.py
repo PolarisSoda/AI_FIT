@@ -3,7 +3,8 @@ import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from pathlib import Path
+from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
 from tqdm import tqdm
 from typing import Tuple
@@ -13,22 +14,14 @@ from model_action.dataset import ExerciseDataset
 from model_action.utils.utils import *
 
 class AGCNModel():
-    def __init__(self, train_pkl: str, val_pkl: str, use_bone: bool = True, batch_size: int = 32):
+    def __init__(self, train_pkl: str, val_pkl: str, save_path: str, use_bone: bool = True, batch_size: int = 32, **kwargs):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.batch_size = batch_size
+        self.save_path = save_path
 
         num_exercise, num_states_list = self.load_meta_from_data(train_pkl)
-            
-        self.net = MultiHeadAGCN(
-            num_exercises=num_exercise,
-            num_states_per_exercise=num_states_list,
-            num_point=24,
-            num_person=1,
-            graph="model_action.arch.graph.mygraph.Graph",
-            graph_args={"labeling_mode": "spatial"},
-            in_channels=2,  # x,y만 쓰는 경우
-            drop_out=0.5
-        ).to(self.device)
+        
+        self.net = MultiHeadAGCN(num_exercise,num_states_list,**kwargs).to(self.device)
         
         self.optimizer = torch.optim.AdamW(self.net.parameters(),lr=1e-3)
         self.scheduler = MultiStepLR(self.optimizer, milestones=[45, 55], gamma=0.5)
@@ -38,10 +31,15 @@ class AGCNModel():
         self.ex_coff = 1.0
         self.state_coff = 1.0
 
+        # Define dataset
         train_dataset = ExerciseDataset(train_pkl, use_bone=use_bone)
         val_dataset = ExerciseDataset(val_pkl, use_bone=use_bone)
         self.train_loader = DataLoader(train_dataset,batch_size,True,collate_fn = lambda b: collate_fn(b, num_states_list),drop_last=True)
         self.val_loader = DataLoader(val_dataset,batch_size,False,collate_fn = lambda b: collate_fn(b, num_states_list),drop_last=False)
+        
+        # Make checkpoint path
+        Path(save_path).mkdir(parents=True, exist_ok=True)
+
 
     # Train just one Epoch
     def train_one_epoch(self):
@@ -49,7 +47,7 @@ class AGCNModel():
 
         total_loss, correct, total = 0.0, 0, 0 
         for x, ex_label, state_label_list in tqdm(self.train_loader):
-            # prepare Data & Optimizer
+            # prepares data and resets optimizer
             x = x.to(self.device); ex_label = ex_label.to(self.device)
             state_label_list = [it.to(self.device) for it in state_label_list]
             self.optimizer.zero_grad()
@@ -137,7 +135,7 @@ class AGCNModel():
         return total_loss/total_ex, acc_ex, acc_state
 
     def save_checkpoint(self, epoch: int) -> None:
-        torch.save(self.net.state_dict(), f"checkpoint_epoch{epoch}.pth")
+        torch.save(self.net.state_dict(), os.path.join(self.save_path,f"ckpt_{epoch}.pth"))
 
     def load_meta_from_data(self, data_path: str) -> Tuple[int, list[int]]:
         with open(data_path,"rb") as f:
@@ -148,17 +146,3 @@ class AGCNModel():
         num_state_list = [len(meta["exercise_to_conditions"][ex]) for ex in exercise]
 
         return num_exercise, num_state_list
-
-def main():
-    model_pipeline = AGCNModel(
-        train_pkl = "datasets/train_data.pkl",
-        val_pkl = "datasets/val_data.pkl",
-        use_bone = True,
-        batch_size = 32,
-    )
-
-    model_pipeline.train_with_num_epochs(65)
-
-
-if __name__ == "__main__":
-    main()

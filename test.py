@@ -4,7 +4,7 @@ import json
 from torch.utils.data import Dataset,DataLoader
 from omegaconf import OmegaConf, DictConfig
 from ultralytics import YOLO
-from model_action.arch import MultiHeadAGCN
+from model_action.arch import MultiHeadAGCN,TCNNetwork
 from model_action.arch import TCNNetwork
 from tqdm import tqdm
 from sklearn.metrics import f1_score, accuracy_score, classification_report, hamming_loss
@@ -111,6 +111,8 @@ def main(cfg: DictConfig) -> None:
         if cfg.action_pretrain_path: action_model.load_pretrain(cfg.action_pretrain_path)
     elif cfg.action_type == 'tcn':
         action_model = TCNNetwork().to('cuda')
+    elif cfg.action_type == 'sttformer':
+        action_model = 1
     else:
         raise NotImplementedError("Others Not Implemented Yet")
     
