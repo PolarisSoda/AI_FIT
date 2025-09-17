@@ -117,12 +117,18 @@ def build_dataset_split(data_json_dir, label_json_path,
     files = [f for f in os.listdir(data_json_dir) if f.endswith(".json")]
 
     for fname in tqdm(files, desc="Processing JSONs"):
+        if "3d" in fname: continue
         path = os.path.join(data_json_dir, fname)
 
         joint_list, type_info = parse_json(path)
+
         if len(joint_list) == 0:
-            print(f"⚠️ Skipped {fname}: no frames")
+            # print(f"⚠️ Skipped {fname}: no frames")
             continue
+        elif joint_list[0].shape[1] != 16:
+            # print(f"⚠️ Skipped {fname}: not enough frames")
+            continue
+
 
         ex_label, cond_vec = make_labels(type_info, exercise_to_idx, exercise_to_conditions)
 
@@ -155,10 +161,10 @@ def build_dataset_split(data_json_dir, label_json_path,
 
 if __name__ == "__main__":
     build_dataset_split(
-        data_json_dir=r"D:\졸작\data\json_data",             # JSON 데이터 폴더
-        label_json_path=r"D:\졸작\exercise_condition_map.json",  # 운동별 조건 정의 JSON
-        out_train="train_data.pkl",
-        out_val="val_data.pkl",
+        data_json_dir=r"S:/AI_FIT/datasets/Label",             # JSON 데이터 폴더
+        label_json_path=r"S:/AI_FIT/cfg/exercise_condition_map.json",  # 운동별 조건 정의 JSON
+        out_train="datasets/train_data.pkl",
+        out_val="datasets/val_data.pkl",
         test_size=0.2,
         seed=42
     )
