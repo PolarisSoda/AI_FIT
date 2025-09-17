@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import math
-from .Heads import AGCNHead
+from .Heads import MLPHead
 from .utils import *
 from torch.autograd import Variable
 import numpy as np
 from .graph.mygraph import Graph
+
 class unit_tcn(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 9, stride: int = 1):
         super().__init__()
@@ -173,7 +174,7 @@ class MultiHeadAGCN(nn.Module):
             graph=graph, graph_args=graph_args,
             in_channels=in_channels,
             drop_out=drop_out)
-        self.head = AGCNHead(
+        self.head = MLPHead(
             num_channel=256,
             num_hidden=256,
             dropout=0.2,

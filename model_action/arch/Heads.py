@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 
-class AGCNHead(nn.Module):
+class MLPHead(nn.Module):
     def __init__(self, num_channel: int, num_hidden: int, dropout: float, num_class: int, num_cond_list: list[int]):
         super().__init__()
 

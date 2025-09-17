@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_tcn import TCN
-from .Heads import AGCNHead
+from .Heads import MLPHead
 
 class TCNNetwork(nn.Module):
     def __init__(self, num_class: int = 41, dropout: float = 0.2, cond_counts: list[int] | None = None):
@@ -28,7 +28,7 @@ class TCNNetwork(nn.Module):
             output_activation=None
         )
         
-        self.head = AGCNHead(64, 256, 0.1, 41, cond_counts)
+        self.head = MLPHead(64, 256, 0.1, 41, cond_counts)
 
     def forward(self, x: torch.tensor):
         feat = self.backbone(x)
