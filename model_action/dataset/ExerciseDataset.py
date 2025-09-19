@@ -4,7 +4,7 @@ import pickle
 
 
 class ExerciseDataset(Dataset):
-    def __init__(self, pkl_path, use_bone=False):
+    def __init__(self, pkl_path, use_bone=False, **kwargs):
         """
         pkl_path : str, pickle 파일 경로
         use_bone : bool, True면 bone_arr, False면 joint_arr 사용

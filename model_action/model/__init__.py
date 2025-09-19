@@ -1,3 +1,3 @@
-from .AGCNModel import AGCNModel
+from .ExerciseModel import ExerciseModel
 
-__all__ = ["AGCNModel"]
+__all__ = ["ExerciseModel"]

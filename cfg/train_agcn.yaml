@@ -1,23 +1,35 @@
-# model
-model: AGCNModel
-save_path: outputs
-num_epoch: 50
-batch_size: 32
-optimizer: Adam
-lr: 1e-4
-scheduler: ~
-milestones: ~
+model:
+    model: ExerciseModel
+    batch_size: 64
+    save_path: outputs
+    train_pkl: datasets/train_data.pkl
+    val_pkl: datasets/val_data.pkl
+    ex_coff: 1.0
+    state_coff: 1.0
+    num_epoch: 10
 
-# arch args
-use_bone: True # if True it will train with bone, otherwise joint will be use.
-num_point: 24 # Your num_point
-num_person: 1
-graph: "model_action.arch.graph.mygraph.Graph"
-in_channels: 2
-drop_out: 0.2
+arch:
+    arch: 2s-AGCN
+    use_bone: True # if True it will train with bone, otherwise joint will be use.
+    num_point: 24 # Your num_point
+    num_person: 1
+    graph: "model_action.arch.graph.mygraph.Graph"
+    in_channels: 2
+    drop_out: 0.2
 
-# dataset args
-dataset: ExerciseDataset
-train_pkl: datasets/train_data.pkl
-val_pkl: datasets/val_data.pkl
+optimizer:
+    optimizer: AdamW
+    lr: 1e-4
+
+scheduler:
+    scheduler: MultistepLR
+    milestones: [45,55]
+
+dataset:
+    dataset: ExerciseDataset
+    use_bone: False
+    num_workers: 0
+
+
+
 

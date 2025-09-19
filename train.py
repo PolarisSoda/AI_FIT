@@ -1,15 +1,14 @@
 import argparse
 from omegaconf import OmegaConf, DictConfig, ListConfig
-from model_action.model import AGCNModel
+from model_action.model import ExerciseModel
 
 def train_with_config(cfg: DictConfig | ListConfig):
-    print(cfg)
-    if cfg.model == "AGCNModel":
-        model = AGCNModel(**cfg)
+    if cfg.model.model == "ExerciseModel":
+        model = ExerciseModel(**cfg)
     else:
         raise NotImplementedError("Not implemented yet.")
     
-    model.train_with_num_epochs(cfg.num_epoch)
+    model.train_with_num_epochs(cfg.model.num_epoch)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

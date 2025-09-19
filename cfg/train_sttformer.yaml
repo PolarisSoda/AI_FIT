@@ -9,12 +9,24 @@ scheduler: ~
 milestones: ~
 
 # arch args
-use_bone: True # if True it will train with bone, otherwise joint will be use.
-num_point: 24 # Your num_point
-num_person: 1
-graph: "model_action.arch.graph.mygraph.Graph"
-in_channels: 2
-drop_out: 0.2
+len_pargs: 6
+num_frames: 120
+num_joints: 24
+num_heads: 3
+kernel_size: [3,5]
+num_persons: 1
+num_channles: 2
+use_pes: True
+config: [
+    [64,  64,  16], 
+    [64,  64,  16], 
+    [64,  128, 32],
+    [128, 128, 32],
+    [128, 256, 64],
+    [256, 256, 64], 
+    [256, 256, 64],
+    [256, 256, 64]
+]
 
 # dataset args
 dataset: ExerciseDataset
