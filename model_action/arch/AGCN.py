@@ -150,36 +150,30 @@ class AGCNBackbone(nn.Module):
         return x
 
 class MultiHeadAGCN(nn.Module):
-    """
-    - exercise head: CrossEntropy (num_exercises)
-    - state heads: list of Linear(256 -> n_states_i) for each exercise i
-    NOTE:
-      forward() 항상 모든 state head의 logits 리스트를 반환합니다 (각 모양: [N, n_states_i]).
-      => 배치에 여러 운동이 섞여 있어도 head별로 mask를 씌워 손실을 계산하세요.
-    """
     def __init__(self,
-                 num_exercises: int,
-                 num_states_per_exercise: list,
-                 num_point=24,
-                 num_person=1,
-                 graph="model-action.arch.graph.mygraph.Graph",
-                 graph_args={"labeling_mode": "spatial"},
-                 in_channels=2,
-                 drop_out=0.5,
-                 **kwargs):
+        num_exercises: int,
+        num_states_per_exercise: list,
+        num_point: int = 24,
+        num_person: int = 1,
+        graph: str = "model-action.arch.graph.mygraph.Graph",
+        graph_args: dict = {"labeling_mode": "spatial"},
+        in_channels: int = 2,
+        drop_out: float = 0.5,
+        **kwargs):
         super().__init__()
-        print("AGCNArch", locals())
+
         self.backbone = AGCNBackbone(
             num_point=num_point,
             num_person=num_person,
             graph=graph, graph_args=graph_args,
             in_channels=in_channels,
             drop_out=drop_out)
+        
         self.head = MLPHead(
             num_channel=256,
             num_hidden=256,
             dropout=0.2,
-            num_class=41,
+            num_class=num_exercises,
             num_cond_list=num_states_per_exercise)
 
     def forward(self, x):
