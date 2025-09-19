@@ -2,12 +2,12 @@
 import numpy as np
 
 JOINTS = [
-    "Left Ear", "Left Eye", "Right Ear", "Right Eye", "Nose", "Neck",
-    "Left Shoulder", "Left Elbow", "Left Wrist", "Left Palm",
-    "Right Shoulder", "Right Elbow", "Right Wrist", "Right Palm",
-    "Back", "Waist",
-    "Left Hip", "Left Knee", "Left Ankle", "Left Foot",
-    "Right Hip", "Right Knee", "Right Ankle", "Right Foot",
+    "Nose","Left Eye","Right Eye","Left Ear","Right Ear",
+    "Left Shoulder","Right Shoulder","Left Elbow","Right Elbow",
+    "Left Wrist","Right Wrist","Left Hip","Right Hip",
+    "Left Knee","Right Knee","Left Ankle","Right Ankle",
+    "Neck","Left Palm","Right Palm","Back","Waist",
+    "Left Foot","Right Foot"
 ]
 name2idx = {n:i for i,n in enumerate(JOINTS)}
 
