@@ -4,10 +4,11 @@ from abc import ABC, abstractmethod
 
 
 class BaseModel():
-    def __init__(self, save_path: str, batch_size: int = 64, **kwargs):
+    def __init__(self, save_path: str, exp_name: str, batch_size: int = 64, **kwargs):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.batch_size = batch_size
         self.save_path = save_path
+        self.exp_name = exp_name 
 
     @abstractmethod
     def train_one_epoch(self):

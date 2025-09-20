@@ -2,11 +2,13 @@ model:
     model: ExerciseModel
     batch_size: 64
     save_path: outputs
+    exp_name: test1
     train_pkl: datasets/train_data.pkl
     val_pkl: datasets/val_data.pkl
     ex_coff: 1.0
     state_coff: 1.0
     num_epoch: 10
+    num_workers: 0
 
 arch:
     arch: 2s-AGCN
@@ -19,16 +21,21 @@ arch:
 
 optimizer:
     optimizer: AdamW
-    lr: 1e-4
+    lr: 1e-3
+    betas: [0.9,0.999]
+    eps: 1e-8
+    weight_decay: 0.01
+    momentum_decay: ~
 
 scheduler:
-    scheduler: MultistepLR
+    scheduler: StepLR
+    step_size: 30
     milestones: [45,55]
+    gamma: 0.1
 
 dataset:
     dataset: ExerciseDataset
     use_bone: False
-    num_workers: 0
 
 
 
