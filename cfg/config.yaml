@@ -1,8 +1,0 @@
-# Model Architecture & Pretrained Path
-vision_type: "yolo"
-vision_pretrain_path: "ckpts/yolo11s_pose_best.pt"
-action_type: "tcn"
-action_pretrain_path: ~
-
-# Dataset Define
-output_path: "output"

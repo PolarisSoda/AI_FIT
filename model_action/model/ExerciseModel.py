@@ -121,7 +121,6 @@ class ExerciseModel(BaseModel):
                 f"Train: ExLoss {train_ex_loss:.4f}, StateLoss {train_state_loss:.4f} | "
                 f"Val: ExLoss {val_ex_loss:.4f}, StateLoss {val_state_loss:.4f}")
 
-            # 모델 저장
             if epoch % 10 == 0:
                 self.save_checkpoint(epoch)
 

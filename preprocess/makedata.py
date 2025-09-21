@@ -72,8 +72,8 @@ def parse_json(json_path):
             pts = frame[view_key].get("pts", {})
             for j, joint in enumerate(JOINTS):
                 if joint in pts:
-                    arr[0, t, j, 0] = pts[joint]["x"]
-                    arr[1, t, j, 0] = pts[joint]["y"]
+                    arr[0, t, j, 0] = pts[joint]["x"] / 1920
+                    arr[1, t, j, 0] = pts[joint]["y"] / 1080
         samples.append(arr)
 
     return samples, data.get("type_info", {})
