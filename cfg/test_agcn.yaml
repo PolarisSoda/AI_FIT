@@ -1,0 +1,11 @@
+arch:
+    arch: 2s-AGCN
+    num_exercise: 41
+    num_states_list: [5, 4, 5, 5, 5, 5, 3, 3, 3, 3, 3, 5, 5, 5, 4, 5, 4, 5, 5, 5, 4, 4, 3, 4, 3, 3, 4, 5, 4, 4, 3, 5, 3, 3, 5, 5, 3, 3, 3, 4, 5]
+    use_bone: True # if True it will train with bone, otherwise joint will be use.
+    num_point: 24 # Your num_point
+    num_person: 1
+    graph: "model_action.arch.graph.mygraph.Graph"
+    in_channels: 2
+    drop_out: 0.2
+
