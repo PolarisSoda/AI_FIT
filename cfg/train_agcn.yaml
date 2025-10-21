@@ -2,9 +2,9 @@ model:
     model: ExerciseModel
     batch_size: 64
     save_path: outputs
-    exp_name: test1
-    train_pkl: datasets/train_data.pkl
-    val_pkl: datasets/val_data.pkl
+    exp_name: test_final
+    train_pkl: datasets/train_data_3d.pkl
+    val_pkl: datasets/val_data_3d.pkl
     ex_coff: 1.0
     state_coff: 1.0
     num_epoch: 100
@@ -12,7 +12,6 @@ model:
 
 arch:
     arch: 2s-AGCN
-    use_bone: True # if True it will train with bone, otherwise joint will be use.
     num_point: 24 # Your num_point
     num_person: 1
     graph: "model_action.arch.graph.mygraph.Graph"
@@ -36,6 +35,10 @@ scheduler:
 dataset:
     dataset: ExerciseDataset
     use_bone: False
+    aug_prob: 0.3
+    use_3d_aug: True
+    normalize: "-1~1"
+    center_translate: True
 
 
 

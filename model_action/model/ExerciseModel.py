@@ -41,8 +41,9 @@ class ExerciseModel(BaseModel):
         self.state_coff = model_kwargs.get("state_coff")
 
         # Define dataset
-        train_dataset = self._build_data(model_kwargs["train_pkl"],**data_kwargs)
-        val_dataset = self._build_data(model_kwargs["val_pkl"],**data_kwargs)
+        data_kwargs["is_val"] = True; train_dataset = self._build_data(model_kwargs["train_pkl"],**data_kwargs)
+        data_kwargs["is_val"] = False; val_dataset = self._build_data(model_kwargs["val_pkl"],**data_kwargs)
+        
         self.train_loader = DataLoader(
             train_dataset, self.batch_size, shuffle=True,
             collate_fn=lambda b: collate_fn(b,self.num_states_list), drop_last=True)
@@ -294,15 +295,60 @@ class ExerciseModel(BaseModel):
             uncond_AP_list.append(average_precision_score(y_true_e,y_prob_e,average='macro'))
         uncond_mAP = np.mean(uncond_AP_list)
         
+        # cond_AP_list = []
+        # for e in range(self.num_exercise):
+        #     if len(state_AP_cond_true) == 0:
+        #         cond_AP_list.append(0.0)
+        #         continue
+        #     y_prob_e = torch.cat(state_AP_cond_prob[e],dim=0).numpy()
+        #     y_true_e = torch.cat(state_AP_cond_true[e],dim=0).numpy()
+        #     cond_AP_list.append(average_precision_score(y_true_e,y_prob_e,average='macro'))
+        # cond_mAP = np.mean(cond_AP_list)
         cond_AP_list = []
         for e in range(self.num_exercise):
-            if len(state_AP_cond_true) == 0:
+            # e가 리스트 길이보다 클 수 있을 때 방어
+            if e >= len(state_AP_cond_true) or e >= len(state_AP_cond_prob):
                 cond_AP_list.append(0.0)
                 continue
-            y_prob_e = torch.cat(state_AP_cond_prob[e],dim=0).numpy()
-            y_true_e = torch.cat(state_AP_cond_true[e],dim=0).numpy()
-            cond_AP_list.append(average_precision_score(y_true_e,y_prob_e,average='macro'))
-        cond_mAP = np.mean(cond_AP_list)
+
+            # None / 빈 리스트 방어
+            prob_list = [t for t in state_AP_cond_prob[e] if t is not None]
+            true_list = [t for t in state_AP_cond_true[e] if t is not None]
+
+            if len(prob_list) == 0 or len(true_list) == 0:
+                cond_AP_list.append(0.0)
+                continue
+
+            # 텐서 병합 시 GPU → CPU 이동
+            y_prob_cat = torch.cat([t.detach().cpu() for t in prob_list if t.numel() > 0], dim=0) \
+                if any(t.numel() > 0 for t in prob_list) else None
+            y_true_cat = torch.cat([t.detach().cpu() for t in true_list if t.numel() > 0], dim=0) \
+                if any(t.numel() > 0 for t in true_list) else None
+
+            if y_prob_cat is None or y_true_cat is None:
+                cond_AP_list.append(0.0)
+                continue
+
+            y_prob_e = y_prob_cat.numpy()
+            y_true_e = y_true_cat.numpy()
+
+            # 길이 불일치 방어
+            n = min(len(y_prob_e), len(y_true_e))
+            if n == 0:
+                cond_AP_list.append(0.0)
+                continue
+
+            y_prob_e = y_prob_e[:n]
+            y_true_e = y_true_e[:n]
+
+            try:
+                ap = average_precision_score(y_true_e, y_prob_e, average='macro')
+            except ValueError:
+                ap = 0.0
+
+            cond_AP_list.append(float(ap))
+
+        cond_mAP = float(np.mean(cond_AP_list)) if len(cond_AP_list) > 0 else 0.0
 
         results = {
             "exercise": {
@@ -377,6 +423,10 @@ class ExerciseModel(BaseModel):
 
         return num_exercise, num_state_list
     
+    def load_state(self, load_path):
+        ckpt = torch.load(load_path, map_location=self.device, weights_only=False)
+        self.net.load_state_dict(ckpt["model"])
+
     def _build_backbone(self,num_exercise,num_states_list,**kwargs) -> Union[MultiHeadAGCN, STTFormer]:
         arch = kwargs.get("arch")
         if arch == "2s-AGCN":
@@ -405,7 +455,6 @@ class ExerciseModel(BaseModel):
         sig = inspect.signature(OPTIMIZERS[optimizer])
         valid_arg = {key: val for key,val in kwargs.items() if key in sig.parameters and key != "params"}
         return OPTIMIZERS[optimizer](self.net.parameters(),**valid_arg)
-
 
     def _build_sched(self,**kwargs):
         SCHEDULERS = {

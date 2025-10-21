@@ -40,6 +40,56 @@ EDGES = [
 ]
 EDGE_IDX = [(JOINT_IDX[p], JOINT_IDX[c]) for p, c in EDGES]
 
+@torch.no_grad()
+def boundary_box_centering_torch(joints: torch.Tensor,
+                                 normalize: str = 'unit',
+                                 img_size=(1920, 1080)) -> torch.Tensor:
+    """
+    joints: (B, C, T, V, M) with C = 2 (x,y)
+    normalize: 'unit' -> 0~1, else -> -1~1
+    img_size: (W, H) in pixels
+    """
+    assert joints.ndim == 5 and joints.size(1) >= 2, "Expected (B, C>=2, T, V, M)"
+    W, H = img_size
+    x = joints[:, 0, ...]  # (B, T, V, M)
+    y = joints[:, 1, ...]  # (B, T, V, M)
+
+    # NaN-safe min/max: replace NaN with +inf/-inf before reduction
+    inf = torch.tensor(float('inf'), device=joints.device, dtype=joints.dtype)
+    ninf = torch.tensor(float('-inf'), device=joints.device, dtype=joints.dtype)
+
+    x_for_min = torch.where(torch.isnan(x), inf, x)
+    x_for_max = torch.where(torch.isnan(x), ninf, x)
+    y_for_min = torch.where(torch.isnan(y), inf, y)
+    y_for_max = torch.where(torch.isnan(y), ninf, y)
+
+    # bbox over (T,V,M)
+    minx = x_for_min.amin(dim=(1, 2, 3), keepdim=True)  # (B,1,1,1)
+    maxx = x_for_max.amax(dim=(1, 2, 3), keepdim=True)
+    miny = y_for_min.amin(dim=(1, 2, 3), keepdim=True)
+    maxy = y_for_max.amax(dim=(1, 2, 3), keepdim=True)
+
+    cx = (minx + maxx) / 2.0
+    cy = (miny + maxy) / 2.0
+
+    # center
+    x_centered = x - cx
+    y_centered = y - cy
+
+    # normalize
+    if normalize == 'unit':   # 0~1 (원래 너가 하던 방식 유지)
+        x_norm = (x_centered + (W / 2.0)) / W
+        y_norm = (y_centered + (H / 2.0)) / H
+    else:                      # -1~1
+        x_norm = x_centered / (W / 2.0)
+        y_norm = y_centered / (H / 2.0)
+
+    # write back (기존 joints에 반영)
+    out = joints.clone()
+    out[:, 0, ...] = x_norm
+    out[:, 1, ...] = y_norm
+    return out
+
 def pts_to_array(pts: dict):
     out = []
     for k in JOINTS:
@@ -153,7 +203,11 @@ def main() -> None:
         drop_out=0.5
     )
     
-    use_vision = False
+    checkpoint = torch.load("E_100.pth", map_location=device, weights_only=False)
+    action_model_joint.load_state_dict(checkpoint["model"],strict=True)
+    action_model_bone.load_state_dict(checkpoint["model"],strict=True)
+
+    use_vision = True
     alpha = 0.5
 
     action_model_bone.to(device)
@@ -166,8 +220,8 @@ def main() -> None:
     dataloader = DataLoader(dataset,batch_size=8,collate_fn=collate_fn)
     
     num_exercise = 41
-    ensemble = True
-    use_bone = True
+    ensemble = False
+    use_bone = False
 
     # class classfication metric
     # Accuracy
@@ -191,7 +245,7 @@ def main() -> None:
     state_AP_uncond_true = [[] for _ in range(num_exercise)]
     state_AP_cond_prob = [[] for _ in range(num_exercise)]
     state_AP_cond_true = [[] for _ in range(num_exercise)]
-    
+
     for (img_paths, kpts, ex_label, state_label_list) in tqdm(dataloader,desc="Testing..."):
         # img_path : str[list]
         # kpts: [B,T,V,C]
@@ -201,15 +255,47 @@ def main() -> None:
         state_label_list = [state_label.to(device) for state_label in state_label_list]
 
         batch_size = kpts.size(0)
-        
-        if use_vision:
-            vision_result_list = vision_model(img_paths, verbose=False, save=False, show=False)
-            vision_result = torch.cat([r.keypoints.xy for r in vision_result_list],dim = 0) # (B*T,V,C)
+
+        if use_vision:  
+            vision_result_list = vision_model(img_paths, verbose=False, save=False, show=False, max_det=1)
+            vision_checked_list = []
+            vision_error_idx = []
+
+            for idx,(path,result) in enumerate(zip(img_paths, vision_result_list)):
+                if len(result.keypoints) > 0:
+                    vision_checked_list.append(result.keypoints.xy)
+                else:
+                    print(f"Error occurs at {path}")
+                    retry = vision_model.predict(source=path,conf=0.1,iou=0.65,max_det=1,verbose=False,save=False,show=False)[0]
+
+                    if len(retry.keypoints) > 0:
+                        vision_checked_list.append(retry.keypoints.xy)
+                    else:
+                        vision_error_idx.append(idx)
+                        error = torch.full((1,24,2),float('nan'))
+                        vision_checked_list.append(error)
+
+            vision_result = torch.cat(vision_checked_list,dim = 0) # (B*T,V,C)
+
+            for idx in vision_error_idx:
+                b = idx // 16 
+                t = idx % 16
+                prev_idx = idx - 1 if t > 0 else None
+                next_idx = idx + 1 if t < 16-1 else None
+
+                if prev_idx is not None and prev_idx not in vision_error_idx:
+                    vision_result[idx] = vision_result[prev_idx]
+                elif next_idx is not None and next_idx not in vision_error_idx:
+                    vision_result[idx] = vision_result[next_idx]
+                else:
+                    vision_result[idx] = torch.zeros_like(vision_result[idx])
+            
             vision_result = vision_result.view(batch_size, 16, *vision_result.shape[1:]) # (B,T,V,C)
             joints = vision_result.permute(0,3,1,2).unsqueeze(-1)
         else:
             joints = kpts.permute(0,3,1,2).unsqueeze(-1)
-
+        
+        joints = boundary_box_centering_torch(joints, normalize='unit', img_size=(1920,1080))
         bones = joints_to_bones(joints) # (B, C, T, V, M)
 
         with torch.no_grad():
@@ -399,6 +485,7 @@ def main() -> None:
 
     with open("inference_result.json","w",encoding="utf-8") as f:
         json.dump(results,f,ensure_ascii=False,indent=4)
+
         
 
 if __name__ == '__main__':
