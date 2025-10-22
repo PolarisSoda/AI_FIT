@@ -44,17 +44,11 @@ EDGE_IDX = [(JOINT_IDX[p], JOINT_IDX[c]) for p, c in EDGES]
 def boundary_box_centering_torch(joints: torch.Tensor,
                                  normalize: str = 'unit',
                                  img_size=(1920, 1080)) -> torch.Tensor:
-    """
-    joints: (B, C, T, V, M) with C = 2 (x,y)
-    normalize: 'unit' -> 0~1, else -> -1~1
-    img_size: (W, H) in pixels
-    """
     assert joints.ndim == 5 and joints.size(1) >= 2, "Expected (B, C>=2, T, V, M)"
     W, H = img_size
     x = joints[:, 0, ...]  # (B, T, V, M)
     y = joints[:, 1, ...]  # (B, T, V, M)
 
-    # NaN-safe min/max: replace NaN with +inf/-inf before reduction
     inf = torch.tensor(float('inf'), device=joints.device, dtype=joints.dtype)
     ninf = torch.tensor(float('-inf'), device=joints.device, dtype=joints.dtype)
 
@@ -63,8 +57,7 @@ def boundary_box_centering_torch(joints: torch.Tensor,
     y_for_min = torch.where(torch.isnan(y), inf, y)
     y_for_max = torch.where(torch.isnan(y), ninf, y)
 
-    # bbox over (T,V,M)
-    minx = x_for_min.amin(dim=(1, 2, 3), keepdim=True)  # (B,1,1,1)
+    minx = x_for_min.amin(dim=(1, 2, 3), keepdim=True)
     maxx = x_for_max.amax(dim=(1, 2, 3), keepdim=True)
     miny = y_for_min.amin(dim=(1, 2, 3), keepdim=True)
     maxy = y_for_max.amax(dim=(1, 2, 3), keepdim=True)
@@ -77,14 +70,13 @@ def boundary_box_centering_torch(joints: torch.Tensor,
     y_centered = y - cy
 
     # normalize
-    if normalize == 'unit':   # 0~1 (원래 너가 하던 방식 유지)
+    if normalize == 'unit':
         x_norm = (x_centered + (W / 2.0)) / W
         y_norm = (y_centered + (H / 2.0)) / H
     else:                      # -1~1
         x_norm = x_centered / (W / 2.0)
         y_norm = y_centered / (H / 2.0)
 
-    # write back (기존 joints에 반영)
     out = joints.clone()
     out[:, 0, ...] = x_norm
     out[:, 1, ...] = y_norm
@@ -96,7 +88,7 @@ def pts_to_array(pts: dict):
         if pts and k in pts and pts[k] is not None:
             out.append([float(pts[k]["x"]), float(pts[k]["y"])])
         else:
-            out.append([-1.0, -1.0])  # 없는 키포인트는 패딩
+            out.append([-1.0, -1.0])
     return out   # (24,2)
 
 class TestDataset(Dataset):
