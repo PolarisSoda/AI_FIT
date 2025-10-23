@@ -160,15 +160,12 @@ def collate_fn(batch):
 
     return img_paths, kpts, cls, state_labels_per_ex
 
-def joints_to_bones(joints: torch.tensor) -> torch.tensor:
-    N,C,T,V,M = joints.shape
-    device = joints.device; dtype = joints.dtype
+def joints_to_bones(joint_arr):
+    parents = torch.tensor([5,7,9,6,8,10,20,11,13,15,20,12,14,16,17,19,17,17,17,0,0,1,2], dtype=torch.long)
+    children = torch.tensor([7,9,17,8,10,18,11,13,15,21,12,14,16,22,19,20,5,6,0,1,2,3,4], dtype=torch.long)
 
-    parents = torch.tensor([p for p, _ in EDGE_IDX], device=device, dtype=torch.long)
-    childs = torch.tensor([c for _, c in EDGE_IDX], device=device, dtype=torch.long)
-
-    bones = torch.zeros_like(joints)
-    bones[:,:,:,childs,:] = joints[:,:,:,childs,:] - joints[:,:,:,parents,:]
+    bones = torch.zeros_like(joint_arr)
+    bones[:, :, :, children, :] = joint_arr[:, :, :, children, :] - joint_arr[:, :, :, parents, :]
     return bones
 
 def main() -> None:
@@ -194,11 +191,11 @@ def main() -> None:
         drop_out=0.5
     )
     
-    checkpoint = torch.load("ckpts/2s_agcn_ver1.pth", map_location=device, weights_only=False)
+    checkpoint = torch.load("ckpts/B_bone.pth", map_location=device, weights_only=False)
     action_model_joint.load_state_dict(checkpoint["model"],strict=True)
     action_model_bone.load_state_dict(checkpoint["model"],strict=True)
 
-    use_vision = True
+    use_vision = False
     alpha = 0.5
 
     action_model_bone.to(device)
@@ -212,7 +209,7 @@ def main() -> None:
     
     num_exercise = 41
     ensemble = False
-    use_bone = False
+    use_bone = True
 
     # class classfication metric
     # Accuracy
