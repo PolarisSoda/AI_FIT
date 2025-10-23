@@ -5,7 +5,7 @@ from torch.utils.data import Dataset,DataLoader
 from omegaconf import OmegaConf, DictConfig
 from ultralytics import YOLO
 from sklearn.metrics import precision_recall_fscore_support, f1_score, average_precision_score
-
+from collections import defaultdict
 from model_action.arch import MultiHeadAGCN
 from model_action.arch import TCNNetwork
 from tqdm import tqdm
@@ -41,9 +41,7 @@ EDGES = [
 EDGE_IDX = [(JOINT_IDX[p], JOINT_IDX[c]) for p, c in EDGES]
 
 @torch.no_grad()
-def boundary_box_centering_torch(joints: torch.Tensor,
-                                 normalize: str = 'unit',
-                                 img_size=(1920, 1080)) -> torch.Tensor:
+def boundary_box_centering_torch(joints: torch.Tensor,normalize = "-1~1",img_size=(1920, 1080)) -> torch.Tensor:
     assert joints.ndim == 5 and joints.size(1) >= 2, "Expected (B, C>=2, T, V, M)"
     W, H = img_size
     x = joints[:, 0, ...]  # (B, T, V, M)
@@ -134,6 +132,7 @@ class TestDataset(Dataset):
                 "cond" : cond_vec
             })
 
+    
     def __len__(self):
         return len(self.file_list)
     
@@ -195,7 +194,7 @@ def main() -> None:
         drop_out=0.5
     )
     
-    checkpoint = torch.load("E_100.pth", map_location=device, weights_only=False)
+    checkpoint = torch.load("ckpts/2s_agcn_ver1.pth", map_location=device, weights_only=False)
     action_model_joint.load_state_dict(checkpoint["model"],strict=True)
     action_model_bone.load_state_dict(checkpoint["model"],strict=True)
 
@@ -287,7 +286,7 @@ def main() -> None:
         else:
             joints = kpts.permute(0,3,1,2).unsqueeze(-1)
         
-        joints = boundary_box_centering_torch(joints, normalize='unit', img_size=(1920,1080))
+        joints = boundary_box_centering_torch(joints, normalize='-1~1', img_size=(1920,1080))
         bones = joints_to_bones(joints) # (B, C, T, V, M)
 
         with torch.no_grad():

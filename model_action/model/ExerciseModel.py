@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typing import Tuple,Union
 
-from model_action.arch import MultiHeadAGCN, STTFormer
+from model_action.arch import MultiHeadAGCN
 from model_action.dataset import ExerciseDataset
 from model_action.model.Basemodel import BaseModel
 from model_action.utils.utils import *
@@ -41,14 +41,21 @@ class ExerciseModel(BaseModel):
         self.state_coff = model_kwargs.get("state_coff")
 
         # Define dataset
-        data_kwargs["is_val"] = True; train_dataset = self._build_data(model_kwargs["train_pkl"],**data_kwargs)
-        data_kwargs["is_val"] = False; val_dataset = self._build_data(model_kwargs["val_pkl"],**data_kwargs)
+        data_kwargs["is_val"] = False; 
+        train_dataset = self._build_data(model_kwargs["train_pkl"],**data_kwargs)
+        data_kwargs["is_val"] = True; 
+        data_kwargs["is_val_aug"] = False; val_dataset_origin = self._build_data(model_kwargs["val_pkl"],**data_kwargs)
+        data_kwargs["is_val_aug"] = True; val_dataset_augment = self._build_data(model_kwargs["val_pkl"],**data_kwargs)
+
         
         self.train_loader = DataLoader(
             train_dataset, self.batch_size, shuffle=True,
             collate_fn=lambda b: collate_fn(b,self.num_states_list), drop_last=True)
-        self.val_loader = DataLoader(
-            val_dataset, self.batch_size, shuffle=False,
+        self.val_loader_origin = DataLoader(
+            val_dataset_origin, self.batch_size, shuffle=False,
+            collate_fn=lambda b: collate_fn(b,self.num_states_list), drop_last=False)
+        self.val_loader_augment = DataLoader(
+            val_dataset_augment, self.batch_size, shuffle=False,
             collate_fn=lambda b: collate_fn(b,self.num_states_list), drop_last=False)
         
         # Make checkpoint path
@@ -59,17 +66,24 @@ class ExerciseModel(BaseModel):
         with open(os.path.join(self.output_path,"configs.yaml"),"w",encoding="utf-8") as f:
             f.write(setting_yaml)
 
-        with open(os.path.join(self.output_path,"logs.csv"),"w",encoding="utf-8",newline="") as f:
+        head_row = [
+            "ex_loss","state_loss",
+            "ex_precision_macro","ex_recall_macro","ex_f1_macro",
+            "ex_precision_weighted","ex_recall_weighted","ex_f1_weighted",
+            "ex_accuracy",
+            "state_f1_uncond","state_f1_cond",
+            "state_exact_uncond","state_exact_cond",
+            "mAP_uncond","mAP_cond"
+        ]
+
+        with open(os.path.join(self.output_path,"val_log_origin.csv"),"w",encoding="utf-8",newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "ex_loss","state_loss",
-                "ex_precision_macro","ex_recall_macro","ex_f1_macro",
-                "ex_precision_weighted","ex_recall_weighted","ex_f1_weighted",
-                "ex_accuracy",
-                "state_f1_uncond","state_f1_cond",
-                "state_exact_uncond","state_exact_cond",
-                "mAP_uncond","mAP_cond"
-            ])
+            writer.writerow(head_row)
+
+        with open(os.path.join(self.output_path,"val_log_augment.csv"),"w",encoding="utf-8",newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(head_row)
+
 
     # Train just one Epoch
     def train_one_epoch(self):
@@ -115,18 +129,19 @@ class ExerciseModel(BaseModel):
     def train_with_num_epochs(self, num_epoch: int = 10):
         for epoch in range(1,num_epoch+1):
             train_ex_loss, train_state_loss = self.train_one_epoch()
-            val_ex_loss, val_state_loss = self.validate()
+            print(f"[{epoch:03d}] Train: ExLoss {train_ex_loss:.4f}, StateLoss {train_state_loss:.4f}")
             self.scheduler.step()
 
-            print(f"[{epoch:03d}] "
-                f"Train: ExLoss {train_ex_loss:.4f}, StateLoss {train_state_loss:.4f} | "
-                f"Val: ExLoss {val_ex_loss:.4f}, StateLoss {val_state_loss:.4f}")
+            val_ex_loss_ori, val_state_loss_ori = self.validate(self.val_loader_origin,"val_log_origin.csv","val_origin_detail.jsonl")
+            val_ex_loss_aug, val_state_loss_aug = self.validate(self.val_loader_augment,"val_log_augment.csv","val_augment_detail.jsonl")
+            print(f"[{epoch:03d}] Val_Original: ExLoss {val_ex_loss_ori:.4f}, StateLoss {val_state_loss_ori:.4f}")
+            print(f"[{epoch:03d}] Val_Augment: ExLoss {val_ex_loss_aug:.4f}, StateLoss {val_state_loss_aug:.4f}")
 
             if epoch % 10 == 0:
                 self.save_checkpoint(epoch)
 
     @torch.no_grad()
-    def _validate_impl(self):
+    def validate(self,dataloader,file_name,file_name_detail):
         self.net.eval()
 
         # total loss
@@ -156,7 +171,7 @@ class ExerciseModel(BaseModel):
         state_AP_cond_prob = [[] for _ in range(self.num_exercise)]
         state_AP_cond_true = [[] for _ in range(self.num_exercise)]
         
-        for x, ex_label, state_label_list in tqdm(self.val_loader):
+        for x, ex_label, state_label_list in tqdm(dataloader):
             x = x.to(self.device); ex_label = ex_label.to(self.device)
             state_label_list = [it.to(self.device) for it in state_label_list]
             batch_size = x.size(0)
@@ -388,10 +403,10 @@ class ExerciseModel(BaseModel):
             }
         }
 
-        with open(os.path.join(self.output_path,"logs_detail.jsonl"),"a",encoding="utf-8") as f:
+        with open(os.path.join(self.output_path,file_name_detail),"a",encoding="utf-8") as f:
             f.write(json.dumps(results,ensure_ascii=False,indent=4) + "\n")
 
-        with open(os.path.join(self.output_path,"logs.csv"),"a",encoding="utf-8",newline="") as f:
+        with open(os.path.join(self.output_path,file_name),"a",encoding="utf-8",newline="") as f:
             writer = csv.writer(f)
             writer.writerow([
                 total_ex_loss/total, total_state_loss/total,
@@ -427,12 +442,10 @@ class ExerciseModel(BaseModel):
         ckpt = torch.load(load_path, map_location=self.device, weights_only=False)
         self.net.load_state_dict(ckpt["model"])
 
-    def _build_backbone(self,num_exercise,num_states_list,**kwargs) -> Union[MultiHeadAGCN, STTFormer]:
+    def _build_backbone(self,num_exercise,num_states_list,**kwargs) -> Union[MultiHeadAGCN]:
         arch = kwargs.get("arch")
         if arch == "2s-AGCN":
             return MultiHeadAGCN(num_exercise,num_states_list,**kwargs)
-        elif arch == "STTFormer":
-            return STTFormer(num_exercise,num_states_list,**kwargs)
         else:
             raise ValueError(f"Unknown backbone arch: {arch}")
         

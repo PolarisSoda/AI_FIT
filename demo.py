@@ -73,15 +73,8 @@ action_model_joint.to(device)
 action_model_bone.eval()
 action_model_joint.eval()
 
-# =========================
-# 공통: 포즈 → [C,V] 키포인트 만들기
-# =========================
 def frame_to_keypoints_bgr(frame_bgr: np.ndarray) -> np.ndarray:
-    """
-    frame_bgr -> (2, V)  (x,y만 사용)
-    YOLO keypoints.xy: [num_person, num_kpt, 2]
-    """
-    # YOLO 추론
+    # YOLO
     pred_device = 0 if torch.cuda.is_available() else 'cpu'
     results = vision_model.predict(source=frame_bgr, verbose=False, save=False, show=False, max_det=1, device=pred_device)
     result = results[0]
@@ -95,33 +88,25 @@ def frame_to_keypoints_bgr(frame_bgr: np.ndarray) -> np.ndarray:
     except Exception:
         kps = None
 
-    # ====== (데모용) 실패시 랜덤 fallback ======
     if kps is None:
-        # 실제 서비스에서는: 이전 유효 포즈 유지(hold-last) 또는 프레임 스킵 권장
+        # if fail, just random.....
         kps = np.random.rand(NUM_POINT, 2).astype(np.float32)
 
-    # 정규화(선택): 학습 스케일과 맞추세요. 여기선 [0,1]로
     H, W = frame_bgr.shape[:2]
     if W > 0 and H > 0:
         kps[:, 0] = kps[:, 0] / float(W)
         kps[:, 1] = kps[:, 1] / float(H)
 
-    # (J,2) -> (2,J)
     return kps.T.astype(np.float32)  # (2, V)
 
 def pack_for_agcn(seq_cv: list):
-    """
-    seq_cv: list of (2,V) 길이 16
-    return: joints,bones as torch tensors: [1, 2, 16, V, 1]
-    """
-    x = np.stack(seq_cv, axis=1).astype(np.float32)  # (2,16,V)
-    joints = torch.from_numpy(x)[None, :, :, :, None]  # [1,2,16,V,1]
+    x = np.stack(seq_cv, axis=1).astype(np.float32)
+    joints = torch.from_numpy(x)[None, :, :, :, None]
     bones  = joints_to_bones(joints)
     return joints.to(device), bones.to(device)
 
 @torch.inference_mode()
 def agcn_forward(joints: torch.Tensor, bones: torch.Tensor):
-    # 두 스트림 forward & 평균 ensemble
     ex_logit_j, state_logits_j = action_model_joint(joints)
     ex_logit_b, state_logits_b = action_model_bone(bones)
     ex_prob   = 0.5 * torch.softmax(ex_logit_j, dim=-1) + 0.5 * torch.softmax(ex_logit_b, dim=-1)

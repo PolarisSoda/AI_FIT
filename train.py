@@ -6,7 +6,7 @@ import numpy as np
 from omegaconf import OmegaConf, DictConfig, ListConfig
 from model_action.model import ExerciseModel
 
-def set_seed(seed: int = 42):
+def set_seed(seed: int = 1557):
     random.seed(seed)                    # Python 내장 난수
     np.random.seed(seed)                 # NumPy 난수
     torch.manual_seed(seed)              # PyTorch CPU 난수
@@ -14,8 +14,8 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)     # 모든 GPU
 
     # CuDNN 관련 (재현성 vs 속도 trade-off)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark = True
 
 def train_with_config(cfg: DictConfig | ListConfig):
     if cfg.model.model == "ExerciseModel":
